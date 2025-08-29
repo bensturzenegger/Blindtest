@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blind Test – Accueil</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="grid grid-2">
+      <section class="card">
+        <h1>🎵 Blind Test</h1>
+        <p class="small">Crée une partie (Admin) ou rejoins‑la (Joueur).</p>
+        <div class="btn-row">
+          <a href="./admin.html"><button class="btn">Espace Admin</button></a>
+          <a href="./player.html"><button class="btn-secondary">Rejoindre comme Joueur</button></a>
+        </div>
+        <hr>
+        <div>
+          <h3>Regarder un classement</h3>
+          <label for="roomView">Code de la salle</label>
+          <input id="roomView" placeholder="Ex: ABCD2">
+          <div class="btn-row" style="margin-top:10px">
+            <button id="watchBtn" class="btn-secondary">Afficher</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="scoreCard" style="display:none">
+        <h2>🏆 Classement — <span id="roomName"></span></h2>
+        <table class="table" id="scoreTable">
+          <thead><tr><th>#</th><th>Joueur</th><th>Score</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="small" id="status"></div>
+      </section>
+    </div>
+
+    <p class="footer">Astuce: utilise des liens <b>MP3 directs</b>. Les navigateurs bloquent l’autoplay : les joueurs doivent appuyer sur <span class="kbd">Play</span>.</p>
+  </div>
+
+  <script type="module">
+    import { listenRoom } from './app.js';
+
+    const roomInput = document.getElementById('roomView');
+    const watchBtn = document.getElementById('watchBtn');
+    const scoreCard = document.getElementById('scoreCard');
+    const roomName = document.getElementById('roomName');
+    const tbody = document.querySelector('#scoreTable tbody');
+    const status = document.getElementById('status');
+
+    let unsubs = [];
+
+    function render(room) {
+      if (!room) { status.textContent = 'Salle introuvable.'; tbody.innerHTML=''; return; }
+      const players = room.players ? Object.values(room.players) : [];
+      const sorted = players.sort((a,b) => (b.score||0) - (a.score||0));
+      tbody.innerHTML = sorted.map((p,i)=>`<tr><td>${i+1}</td><td>${p.name||'—'}</td><td>${p.score||0}</td></tr>`).join('');
+      const st = room.state?.status || 'lobby';
+      status.textContent = `Statut: ${st}`;
+    }
+
+    watchBtn.addEventListener('click', () => {
+      unsubs.forEach(f=>f&&f());
+      unsubs = [];
+      const code = roomInput.value.trim().toUpperCase();
+      if (!code) return;
+      roomName.textContent = code;
+      scoreCard.style.display = 'block';
+      unsubs.push(listenRoom(code, render));
+    });
+  </script>
+</body>
+</html>

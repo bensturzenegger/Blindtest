@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blind Test – Admin</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="container">
+    <section class="card">
+      <h1>🧑‍✈️ Espace Admin</h1>
+      <div class="grid grid-2">
+        <div>
+          <h3>Créer / Ouvrir une salle</h3>
+          <label>Code (optionnel – sinon aléatoire)</label>
+          <input id="roomCode" placeholder="Ex: MUSIC5">
+          <div class="btn-row" style="margin-top:10px">
+            <button id="newRoom" class="btn">Créer</button>
+          </div>
+          <div class="small">Partage aux joueurs : <code id="joinUrl"></code></div>
+        </div>
+        <div>
+          <h3>Salle en cours</h3>
+          <div>Code : <b id="roomHead">—</b></div>
+          <div>Statut : <span class="badge" id="status">—</span></div>
+          <div class="btn-row" style="margin-top:10px">
+            <button id="endGame" class="btn-danger">Terminer la partie</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="playersCard" style="display:none">
+      <h2>👥 Joueurs connectés</h2>
+      <table class="table"><thead><tr><th>#</th><th>Pseudo</th><th>Score</th></tr></thead><tbody id="players"></tbody></table>
+    </section>
+
+    <section class="card" id="questionsCard" style="display:none">
+      <h2>❓ Questions</h2>
+      <div class="grid grid-2">
+        <div>
+          <h3>Ajouter une question</h3>
+          <label>Titre (ex: "Trouver l'artiste")</label>
+          <input id="qTitle" placeholder="Titre de la question">
+          <label>URL média (MP3 public recommandé)</label>
+          <input id="qMedia" placeholder="https://.../extrait.mp3">
+          <label>Réponses acceptées (séparées par des virgules)</label>
+          <input id="qAnswers" placeholder="ex: daft punk, one more time">
+          <div class="grid" style="grid-template-columns:1fr 1fr 1fr; gap:8px">
+            <div>
+              <label>Temps (s)</label>
+              <input id="qTime" type="number" value="20">
+            </div>
+            <div>
+              <label>Points base</label>
+              <input id="qBase" type="number" value="1000">
+            </div>
+            <div>
+              <label>Malus/sec</label>
+              <input id="qPerSec" type="number" value="10">
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:10px">
+            <button id="addQ" class="btn">Ajouter</button>
+          </div>
+          <p class="small">Astuce : prépare toutes tes questions avant la soirée 😉</p>
+        </div>
+        <div>
+          <h3>Liste</h3>
+          <div id="qList"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="liveCard" style="display:none">
+      <h2 id="live">🎬 En direct</h2>
+      <div class="flex" style="justify-content:space-between">
+        <div>Question actuelle : <b id="currTitle">—</b></div>
+        <div>Temps : <span id="timer" class="badge">—</span></div>
+      </div>
+      <div id="adminMedia" style="margin:10px 0"></div>
+      <div class="btn-row">
+        <button id="startQ" class="btn">Démarrer</button>
+        <button id="stopQ" class="btn-secondary">Arrêter</button>
+      </div>
+      <hr>
+      <h3>Réponses reçues</h3>
+      <table class="table"><thead><tr><th>Joueur</th><th>Réponse</th><th>OK</th><th>Points</th><th>Temps</th></tr></thead><tbody id="answers"></tbody></table>
+    </section>
+  </div>
+
+  <script type="module">
+    import { $, $$, randomCode, listenRoom, createRoom, addQuestion, startQuestion, endQuestion, endGame } from './app.js';
+
+    const roomInput = $('#roomCode');
+    const newRoomBtn = $('#newRoom');
+    const joinUrl = $('#joinUrl');
+
+    const roomHead = $('#roomHead');
+    const statusEl = $('#status');
+
+    const playersCard = $('#playersCard');
+    const playersBody = $('#players');
+
+    const questionsCard = $('#questionsCard');
+    const qTitle = $('#qTitle');
+    const qMedia = $('#qMedia');
+    const qAnswers = $('#qAnswers');
+    const qTime = $('#qTime');
+    const qBase = $('#qBase');
+    const qPerSec = $('#qPerSec');
+    const addQBtn = $('#addQ');
+    const qList = $('#qList');
+
+    const liveCard = $('#liveCard');
+    const currTitle = $('#currTitle');
+    const timer = $('#timer');
+    const adminMedia = $('#adminMedia');
+    const startQBtn = $('#startQ');
+    const stopQBtn = $('#stopQ');
+    const ansBody = $('#answers');
+
+    let roomCode = null;
+    let roomData = null;
+    let selectedQ = null;
+    let countdownInt = null;
+
+    function setStatus(s){ statusEl.textContent = s; }
+
+    function renderPlayers(players){
+      const sorted = players.sort((a,b)=>(b.score||0)-(a.score||0));
+      playersBody.innerHTML = sorted.map((p,i)=>`<tr><td>${i+1}</td><td>${p.name||'—'}</td><td>${p.score||0}</td></tr>`).join('');
+    }
+
+    function renderQuestions(obj){
+      qList.innerHTML = '';
+      const entries = Object.entries(obj||{});
+      if (!entries.length) { qList.innerHTML = '<div class="small">Aucune question pour l’instant.</div>'; return; }
+      entries.forEach(([qid,q])=>{
+        const wrap = document.createElement('div');
+        wrap.className = 'card';
+        wrap.style.padding = '12px';
+        wrap.style.marginBottom = '10px';
+        wrap.innerHTML = `
+          <div class="flex" style="justify-content:space-between; align-items:flex-start">
+            <div>
+              <div><b>${q.title||'Question'}</b></div>
+              <div class="small">Durée: ${q.timeLimit||20}s • Base: ${q.basePoints||1000} • Malus/sec: ${q.perSecond||10}</div>
+              <div class="small">Réponses: ${(q.answers||[]).join(', ')}</div>
+              <div class="small">Média: <span class="link" data-url="${q.mediaUrl}">ouvrir</span></div>
+            </div>
+            <div class="btn-row" style="min-width:220px">
+              <button class="btn" data-action="choose" data-qid="${qid}">Sélectionner</button>
+              <a href="#live"><button class="btn-secondary" data-action="preview" data-url="${q.mediaUrl}">Pré‑écouter</button></a>
+            </div>
+          </div>`;
+        qList.appendChild(wrap);
+      });
+    }
+
+    function mountMedia(url, hostEl){
+      hostEl.innerHTML = '';
+      if (!url) return;
+      const audio = document.createElement('audio');
+      audio.controls = true; audio.src = url; audio.preload = 'auto'; audio.style.width = '100%';
+      hostEl.appendChild(audio);
+    }
+
+    function startCountdown(durationSec){
+      clearInterval(countdownInt);
+      let remain = durationSec;
+      timer.textContent = `${remain}s`;
+      countdownInt = setInterval(()=>{
+        remain -= 1;
+        timer.textContent = `${Math.max(remain,0)}s`;
+        if (remain<=0) clearInterval(countdownInt);
+      }, 1000);
+    }
+
+    async function handleCreateRoom(){
+      const code = (roomInput.value.trim() || randomCode()).toUpperCase();
+      roomCode = await createRoom(code);
+      roomHead.textContent = roomCode;
+      joinUrl.textContent = location.origin + '/player.html';
+      window.history.replaceState({}, '', `admin.html?room=${roomCode}`);
+
+      playersCard.style.display = 'block';
+      questionsCard.style.display = 'block';
+      liveCard.style.display = 'block';
+
+      listenRoom(roomCode, (room)=>{
+        roomData = room;
+        setStatus(room?.state?.status || 'lobby');
+        const players = room?.players ? Object.values(room.players) : [];
+        renderPlayers(players);
+        renderQuestions(room?.questions || {});
+
+        const qid = room?.state?.currentQ;
+        if (qid && room.questions?.[qid]) {
+          const q = room.questions[qid];
+          currTitle.textContent = q.title || 'Question';
+          mountMedia(q.mediaUrl, adminMedia);
+          startCountdown(q.timeLimit||20);
+          const ans = room.answers?.[qid] || {};
+          const list = Object.values(ans);
+          ansBody.innerHTML = list.map(a=>`<tr><td>${(room.players?.[a.uid]?.name)||'—'}</td><td>${a.answerText||''}</td><td>${a.correct? '✅':''}</td><td>${a.score||0}</td><td>${Math.floor((a.msElapsed||0)/1000)}s</td></tr>`).join('');
+        } else {
+          currTitle.textContent = '—';
+          adminMedia.innerHTML = '';
+          ansBody.innerHTML = '';
+          timer.textContent = '—';
+        }
+      });
+    }
+
+    newRoomBtn.addEventListener('click', handleCreateRoom);
+
+    addQBtn.addEventListener('click', async ()=>{
+      if (!roomCode) return alert('Crée d\'abord une salle.');
+      const answers = qAnswers.value.split(',').map(s=>s.trim()).filter(Boolean);
+      const id = await addQuestion(roomCode, {
+        title: qTitle.value.trim() || 'Question',
+        mediaUrl: qMedia.value.trim(),
+        answers,
+        timeLimit: Number(qTime.value||20),
+        basePoints: Number(qBase.value||1000),
+        perSecond: Number(qPerSec.value||10)
+      });
+      qTitle.value=''; qMedia.value=''; qAnswers.value='';
+      alert('Question ajoutée ✅');
+    });
+
+    startQBtn.addEventListener('click', async ()=>{
+      if (!roomCode) return;
+      if (!selectedQ) return alert('Sélectionne une question dans la liste.');
+      await startQuestion(roomCode, selectedQ);
+      const q = roomData?.questions?.[selectedQ];
+      if (q) startCountdown(q.timeLimit||20);
+    });
+
+    stopQBtn.addEventListener('click', ()=>{ roomCode && endQuestion(roomCode); });
+    document.getElementById('endGame').addEventListener('click', ()=>{ roomCode && endGame(roomCode); });
+
+    qList.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button, .link');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      if (action === 'choose') {
+        selectedQ = btn.dataset.qid;
+        $$('.btn[data-action="choose"]').forEach(b=>b.textContent='Sélectionner');
+        btn.textContent = 'Sélectionné ✓';
+      }
+      if (action === 'preview') {
+        const url = btn.dataset.url; mountMedia(url, adminMedia);
+      }
+      if (btn.classList.contains('link')) {
+        window.open(btn.dataset.url, '_blank');
+      }
+    });
+
+    const params = new URLSearchParams(location.search);
+    if (params.get('room')) {
+      roomInput.value = params.get('room').toUpperCase();
+      handleCreateRoom();
+    }
+  </script>
+</body>
+</html>

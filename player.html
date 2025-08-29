@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blind Test – Joueur</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="container">
+    <section class="card" id="joinCard">
+      <h1>🙋 Rejoindre une partie</h1>
+      <label>Code de la salle</label>
+      <input id="room" placeholder="Ex: ABCD2" autocomplete="off">
+      <label>Pseudo</label>
+      <input id="name" placeholder="Ton pseudo" autocomplete="nickname">
+      <div class="btn-row" style="margin-top:10px">
+        <button id="joinBtn" class="btn">Rejoindre</button>
+      </div>
+      <p class="small">Partage ce lien à tes amis : <code id="shareUrl"></code></p>
+    </section>
+
+    <section class="card" id="playCard" style="display:none">
+      <div class="flex" style="justify-content:space-between">
+        <h2>🎮 Salle <span id="roomTitle"></span></h2>
+        <span class="badge" id="status">lobby</span>
+      </div>
+      <div id="media" style="margin:10px 0"></div>
+      <div id="answerBox">
+        <label>Ta réponse</label>
+        <input id="answer" placeholder="Titre / Artiste">
+        <div class="btn-row" style="margin-top:10px">
+          <button id="send" class="btn">Valider</button>
+          <button id="clear" class="btn-secondary">Effacer</button>
+        </div>
+        <div class="small" id="feedback"></div>
+      </div>
+      <hr>
+      <h3>🏆 Classement</h3>
+      <table class="table"><thead><tr><th>#</th><th>Joueur</th><th>Score</th></tr></thead><tbody id="board"></tbody></table>
+    </section>
+  </div>
+
+  <script type="module">
+    import { $, listenRoom, ensurePlayer, getLocalUID, submitAnswer } from './app.js';
+
+    const joinCard = $('#joinCard');
+    const playCard = $('#playCard');
+    const shareUrl = $('#shareUrl');
+    shareUrl.textContent = location.href;
+
+    const roomInput = $('#room');
+    const nameInput = $('#name');
+    const joinBtn = $('#joinBtn');
+
+    const roomTitle = $('#roomTitle');
+    const statusEl = $('#status');
+    const board = $('#board');
+    const media = $('#media');
+
+    const answer = $('#answer');
+    const send = $('#send');
+    const clearBtn = $('#clear');
+    const feedback = $('#feedback');
+
+    let roomCode = null;
+    let uid = null;
+    let currentQ = null;
+
+    function renderBoard(players){
+      const sorted = players.sort((a,b) => (b.score||0)-(a.score||0));
+      board.innerHTML = sorted.map((p,i)=>`<tr><td>${i+1}</td><td>${p.name||'—'}</td><td>${p.score||0}</td></tr>`).join('');
+    }
+
+    function renderMedia(q) {
+      media.innerHTML = '';
+      if (!q?.mediaUrl) return;
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.src = q.mediaUrl;
+      audio.preload = 'auto';
+      audio.style.width = '100%';
+      media.appendChild(audio);
+    }
+
+    function setStatus(s){ statusEl.textContent = s; }
+
+    function joinFlow() {
+      roomCode = roomInput.value.trim().toUpperCase();
+      const name = nameInput.value.trim() || 'Invité';
+      if (!roomCode) return alert('Entre le code de la salle.');
+      ensurePlayer(roomCode, name).then(()=>{
+        uid = getLocalUID(roomCode);
+        roomTitle.textContent = roomCode;
+        joinCard.style.display = 'none';
+        playCard.style.display = 'block';
+        listenRoom(roomCode, (room)=>{
+          if (!room) return;
+          setStatus(room.state?.status || 'lobby');
+          const players = room.players ? Object.values(room.players) : [];
+          renderBoard(players);
+          const qid = room.state?.currentQ;
+          currentQ = qid;
+          if (room.state?.status === 'question' && qid && room.questions?.[qid]) {
+            renderMedia(room.questions[qid]);
+            answer.disabled = false; send.disabled = false; feedback.textContent = '';
+          } else {
+            media.innerHTML = '';
+            answer.disabled = true; send.disabled = true;
+          }
+        });
+      });
+    }
+
+    joinBtn.addEventListener('click', joinFlow);
+
+    clearBtn.addEventListener('click', ()=>{ answer.value=''; feedback.textContent=''; });
+
+    send.addEventListener('click', async ()=>{
+      if (!currentQ) return;
+      const txt = answer.value.trim();
+      if (!txt) return;
+      send.disabled = true;
+      const res = await submitAnswer(roomCode, currentQ, uid, txt);
+      if (res.correct) {
+        feedback.innerHTML = `✅ Correct ! +<b>${res.score}</b> points`;
+        feedback.className = 'small ok';
+      } else {
+        feedback.textContent = '❌ Raté !';
+        feedback.className = 'small err';
+      }
+    });
+  </script>
+</body>
+</html>

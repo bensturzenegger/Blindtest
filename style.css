@@ -1,0 +1,31 @@
+/* style.css — minimal, responsive */
+:root{ --bg:#0b1020; --card:#121936; --muted:#a7b1d6; --text:#f4f6ff; --acc:#6ea8fe; --ok:#3ddc97; --bad:#ff6b6b; }
+*{ box-sizing:border-box }
+html,body{ margin:0; padding:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; }
+.container{ max-width:1100px; margin:0 auto; padding:24px }
+.card{ background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:20px; box-shadow:0 6px 20px rgba(0,0,0,0.25) }
+h1,h2,h3{ margin:8px 0 12px }
+label{ display:block; margin:10px 0 6px; color:var(--muted) }
+input,select,button,textarea{ width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:#0f1530; color:var(--text); outline:none }
+button{ cursor:pointer; font-weight:600; letter-spacing:.2px; transition:.15s transform ease, .15s opacity ease }
+button:hover{ transform:translateY(-1px) }
+.btn-row{ display:flex; gap:10px; flex-wrap:wrap }
+.btn{ background:var(--acc) }
+.btn-secondary{ background:#263157 }
+.btn-danger{ background:var(--bad) }
+.grid{ display:grid; gap:16px }
+.grid-2{ grid-template-columns:1fr; }
+@media(min-width:900px){ .grid-2{ grid-template-columns:1fr 1fr } }
+.small{ color:var(--muted); font-size:13px }
+.kbd{ background:#0f1530; border:1px solid rgba(255,255,255,0.12); padding:2px 6px; border-radius:6px; }
+.badge{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; background:#1b2548; color:#b6c4ff }
+.table{ width:100%; border-collapse:collapse }
+.table th, .table td{ text-align:left; padding:10px; border-bottom:1px solid rgba(255,255,255,0.08) }
+.ok{ color:var(--ok) }
+.err{ color:var(--bad) }
+hr{ border:0; height:1px; background:rgba(255,255,255,0.08); margin:18px 0 }
+.footer{ margin-top:18px; font-size:12px; color:var(--muted) }
+.link{ color:#bcd1ff; text-decoration:underline; cursor:pointer }
+.center{ text-align:center }
+.flex{ display:flex; align-items:center; gap:10px }
+code{ background:#0f1530; border:1px solid rgba(255,255,255,0.12); padding:2px 6px; border-radius:6px }
