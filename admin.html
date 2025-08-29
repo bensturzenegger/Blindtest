@@ -182,7 +182,7 @@
       const code = (roomInput.value.trim() || randomCode()).toUpperCase();
       roomCode = await createRoom(code);
       roomHead.textContent = roomCode;
-      joinUrl.textContent = location.origin + '/player.html';
+      joinUrl.textContent = location.origin + '/Blindtest/player.html';
       window.history.replaceState({}, '', `admin.html?room=${roomCode}`);
 
       playersCard.style.display = 'block';
